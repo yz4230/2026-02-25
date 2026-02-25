@@ -1,0 +1,11 @@
+# vm05: IPv4 endpoint (nw4)
+# Interface: enp2s0 = nw4
+interfaces:
+  - dev: enp2s0
+    addresses:
+      - "10.4.0.5/24"
+
+ipv4_routes:
+  - dest: "10.1.0.0/24"
+    via: "10.4.0.4"
+    dev: enp2s0

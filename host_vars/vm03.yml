@@ -1,0 +1,27 @@
+# vm03: SRv6 transit node (nw2 + nw3 + nw5)
+# Interface: enp2s0 = nw2 (IPv6), enp3s0 = nw3 (IPv6), enp4s0 = nw5 (IPv6)
+interfaces:
+  - dev: enp2s0
+    addresses:
+      - "fd00:2::3/64"
+  - dev: enp3s0
+    addresses:
+      - "fd00:3::3/64"
+  - dev: enp4s0
+    addresses:
+      - "fd00:5::3/64"
+
+sysctl_params:
+  net.ipv6.conf.all.forwarding: "1"
+  net.ipv6.conf.all.seg6_enabled: "1"
+  net.ipv6.conf.enp2s0.seg6_enabled: "1"
+  net.ipv6.conf.enp3s0.seg6_enabled: "1"
+
+# Transit routes for SRv6 locators
+ipv6_routes:
+  - dest: "fd00:a:4::/48"
+    via: "fd00:3::4"
+    dev: enp3s0
+  - dest: "fd00:a:2::/48"
+    via: "fd00:2::2"
+    dev: enp2s0

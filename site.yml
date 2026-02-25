@@ -1,0 +1,117 @@
+---
+# IPv4 over SRv6 Demo - Complete Network Configuration
+#
+# Topology:
+#   vm01 --(nw1/IPv4)-- vm02 --(nw2/IPv6)-- vm03 --(nw3/IPv6)-- vm04 --(nw4/IPv4)-- vm05
+#                                              |
+#                                           (nw5/IPv6)
+#                                              |
+#                                             vm06
+#
+# SRv6 Data Path:
+#   Forward: vm01 → vm02(H.Encaps) → vm03(transit) → vm04(End.DX4) → vm05
+#   Return:  vm05 → vm04(H.Encaps) → vm03(transit) → vm02(End.DX4) → vm01
+#
+# Addressing:
+#   nw1 (IPv4): 10.1.0.0/24  vm01=.1  vm02=.2
+#   nw2 (IPv6): fd00:2::/64  vm02=::2 vm03=::3
+#   nw3 (IPv6): fd00:3::/64  vm03=::3 vm04=::4
+#   nw4 (IPv4): 10.4.0.0/24  vm04=.4  vm05=.5
+#   nw5 (IPv6): fd00:5::/64  vm03=::3 vm06=::6
+#
+# SRv6 SIDs (locator fd00:a:<node>::/48):
+#   vm02 End.DX4: fd00:a:2::d4
+#   vm04 End.DX4: fd00:a:4::d4
+
+# ─── Play 1: Static IP Addresses ───────────────────────────────────────
+
+- name: Configure static IP addresses
+  hosts: vms
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Bring up network interfaces
+      ansible.builtin.command:
+        cmd: "ip link set {{ item.dev }} up"
+      loop: "{{ interfaces }}"
+      loop_control:
+        label: "{{ item.dev }}"
+      changed_when: false
+
+    - name: Assign IP addresses
+      ansible.builtin.command:
+        cmd: "ip addr add {{ item.1 }} dev {{ item.0.dev }}"
+      loop: "{{ interfaces | subelements('addresses') }}"
+      loop_control:
+        label: "{{ item.0.dev }}: {{ item.1 }}"
+      register: result
+      failed_when: >-
+        result.rc != 0 and
+        'RTNETLINK answers: File exists' not in result.stderr
+      changed_when: result.rc == 0
+
+# ─── Play 2: Kernel Parameters ─────────────────────────────────────────
+
+- name: Configure kernel parameters for forwarding and SRv6
+  hosts: vms
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Set sysctl parameters
+      ansible.builtin.command:
+        cmd: "sysctl -w {{ item.key }}={{ item.value }}"
+      loop: "{{ sysctl_params | default({}) | dict2items }}"
+      loop_control:
+        label: "{{ item.key }}={{ item.value }}"
+      when: sysctl_params is defined
+      changed_when: false
+
+# ─── Play 3: Static Routes ─────────────────────────────────────────────
+
+- name: Configure static routes
+  hosts: vms
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Add IPv4 static routes
+      ansible.builtin.command:
+        cmd: "ip route replace {{ item.dest }} via {{ item.via }} dev {{ item.dev }}"
+      loop: "{{ ipv4_routes | default([]) }}"
+      loop_control:
+        label: "{{ item.dest }} via {{ item.via }}"
+      changed_when: false
+
+    - name: Add IPv6 static routes
+      ansible.builtin.command:
+        cmd: "ip -6 route replace {{ item.dest }} via {{ item.via }} dev {{ item.dev }}"
+      loop: "{{ ipv6_routes | default([]) }}"
+      loop_control:
+        label: "{{ item.dest }} via {{ item.via }}"
+      changed_when: false
+
+# ─── Play 4: SRv6 Configuration ────────────────────────────────────────
+
+- name: Configure SRv6 encapsulation and local SIDs
+  hosts: vms
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Configure SRv6 H.Encaps routes
+      ansible.builtin.shell:
+        cmd: |
+          ip route del {{ item.dest }} 2>/dev/null || true
+          ip route add {{ item.dest }} encap seg6 mode encap segs {{ item.segs }} dev {{ item.dev }}
+      loop: "{{ srv6_encap_routes | default([]) }}"
+      loop_control:
+        label: "H.Encaps {{ item.dest }} → [{{ item.segs }}]"
+      changed_when: false
+
+    - name: Configure SRv6 End.DX4 local SIDs
+      ansible.builtin.shell:
+        cmd: |
+          ip -6 route del {{ item.sid }}/128 2>/dev/null || true
+          ip -6 route add {{ item.sid }}/128 encap seg6local action End.DX4 nh4 {{ item.nh4 }} dev {{ item.dev }}
+      loop: "{{ srv6_local_sids | default([]) }}"
+      loop_control:
+        label: "End.DX4 {{ item.sid }} → nh4 {{ item.nh4 }}"
+      changed_when: false
