@@ -63,7 +63,7 @@ resource "libvirt_cloudinit_disk" "init" {
 
   name = "${each.value.name}-init"
   user_data = templatefile("${path.module}/user.yaml", {
-    ssh_public_key = file("${path.module}/id.pub")
+    ssh_public_key = trimspace(file("${path.module}/id.pub"))
   })
   meta_data = yamlencode({
     instance_id    = each.value.name
