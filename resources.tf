@@ -11,9 +11,8 @@ provider "libvirt" {
 }
 
 locals {
-  volume_path = abspath("${path.module}/alpine-nocloud.qcow2")
-  seed_path   = abspath("${path.module}/seed.iso")
-  nws         = { nw1 = {}, nw2 = {}, nw3 = {}, nw4 = {}, nw5 = {} }
+  image_path = abspath("${path.module}/debian-cloud.qcow2")
+  nws        = { nw1 = {}, nw2 = {}, nw3 = {}, nw4 = {}, nw5 = {} }
   vms = {
     vm01 = {
       name     = "vm01"
@@ -54,9 +53,20 @@ resource "libvirt_volume" "vol" {
   }
   create = {
     content = {
-      url = "file:///${local.volume_path}"
+      url = "file:///${local.image_path}"
     }
   }
+}
+
+resource "libvirt_cloudinit_disk" "init" {
+  for_each = local.vms
+
+  name      = "${each.value.name}-init"
+  user_data = file("${path.module}/user.yaml")
+  meta_data = yamlencode({
+    instance_id = each.value.name
+    hostname    = each.value.name
+  })
 }
 
 resource "libvirt_volume" "seed" {
@@ -66,7 +76,7 @@ resource "libvirt_volume" "seed" {
   pool = "default"
   create = {
     content = {
-      url = "file:///${local.seed_path}"
+      url = libvirt_cloudinit_disk.init[each.key].path
     }
   }
 }
@@ -82,20 +92,13 @@ resource "libvirt_domain" "vm" {
   for_each = local.vms
 
   name        = each.value.name
-  memory      = "512"
-  memory_unit = "MiB"
-  vcpu        = 1
+  memory      = "2"
+  memory_unit = "GiB"
+  vcpu        = 2
   type        = "kvm"
   running     = true
-  metadata = {
-    xml = <<-EOT
-      <libosinfo:libosinfo xmlns:libosinfo="http://libosinfo.org/xmlns/libvirt/domain/1.0">
-        <libosinfo:os id="http://alpinelinux.org/alpinelinux/3.21"/>
-      </libosinfo:libosinfo>
-    EOT
-  }
-  features = { acpi = true, apic = { eoi = "on" } }
-  cpu      = { mode = "host-passthrough" }
+  features    = { acpi = true, apic = { eoi = "on" } }
+  cpu         = { mode = "host-passthrough" }
   os = {
     type         = "hvm"
     type_arch    = "x86_64"
@@ -129,6 +132,7 @@ resource "libvirt_domain" "vm" {
       }]
     )
     consoles = [{ target = { type = "serial", port = "0" } }]
+    videos   = [{ model = { type = "virtio", heads = "1", primary = "yes" } }]
   }
 }
 
