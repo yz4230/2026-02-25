@@ -17,27 +17,27 @@ locals {
   vms = {
     vm01 = {
       name     = "vm01"
-      networks = ["default", "nw1"]
+      networks = ["nw1"]
     }
     vm02 = {
       name     = "vm02"
-      networks = ["default", "nw1", "nw2"]
+      networks = ["nw1", "nw2"]
     }
     vm03 = {
       name     = "vm03"
-      networks = ["default", "nw2", "nw3", "nw5"]
+      networks = ["nw2", "nw3", "nw5"]
     }
     vm04 = {
       name     = "vm04"
-      networks = ["default", "nw3", "nw4"]
+      networks = ["nw3", "nw4"]
     }
     vm05 = {
       name     = "vm05"
-      networks = ["default", "nw4"]
+      networks = ["nw4"]
     }
     vm06 = {
       name     = "vm06"
-      networks = ["default", "nw5"]
+      networks = ["nw5"]
     }
   }
 }
