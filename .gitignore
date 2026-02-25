@@ -1,0 +1,24 @@
+# Terraform
+.terraform.tfstate.lock.info
+.terraform/
+.terraformrc
+*_override.tf
+*_override.tf.json
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+crash.*.log
+crash.log
+override.tf
+override.tf.json
+terraform.rc
+
+# Local
+/.vscode/
+/*.iso
+/*.qcow2
+/id
+/id.pub
+/inventory.ini
+/ssh_config
