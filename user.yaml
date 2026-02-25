@@ -1,6 +1,6 @@
 #cloud-config
 ssh_authorized_keys:
-  - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIP0qdTDdJHcBHcN2DypOO5rFHPAhVkOFWjmEedugVflm yz@labpc
+  - ${ssh_public_key}
 
 runcmd:
   - echo "Hello, World!"

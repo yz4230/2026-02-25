@@ -61,8 +61,10 @@ resource "libvirt_volume" "vol" {
 resource "libvirt_cloudinit_disk" "init" {
   for_each = local.vms
 
-  name      = "${each.value.name}-init"
-  user_data = file("${path.module}/user.yaml")
+  name = "${each.value.name}-init"
+  user_data = templatefile("${path.module}/user.yaml", {
+    ssh_public_key = file("${path.module}/id.pub")
+  })
   meta_data = yamlencode({
     instance_id    = each.value.name
     local-hostname = each.value.name
