@@ -9,7 +9,7 @@
 #                                             vm06
 #
 # SRv6 Data Path:
-#   Forward: vm01 → vm02(H.Encaps) → vm03(transit) → vm04(End.DX4) → vm05
+#   Forward: vm01 → vm02(H.Encaps) → vm03 → vm06(End) → vm03 → vm04(End.DX4) → vm05
 #   Return:  vm05 → vm04(H.Encaps) → vm03(transit) → vm02(End.DX4) → vm01
 #
 # Addressing:
@@ -22,6 +22,7 @@
 # SRv6 SIDs (locator fd00:a:<node>::/48):
 #   vm02 End.DX4: fd00:a:2::d4
 #   vm04 End.DX4: fd00:a:4::d4
+#   vm06 End:     fd00:a:6::1
 
 # ─── Play 1: Static IP Addresses ───────────────────────────────────────
 
@@ -104,6 +105,16 @@
       loop: "{{ srv6_encap_routes | default([]) }}"
       loop_control:
         label: "H.Encaps {{ item.dest }} → [{{ item.segs }}]"
+      changed_when: false
+
+    - name: Configure SRv6 End SIDs
+      ansible.builtin.shell:
+        cmd: |
+          ip -6 route del {{ item.sid }}/128 2>/dev/null || true
+          ip -6 route add {{ item.sid }}/128 encap seg6local action End dev {{ item.dev }}
+      loop: "{{ srv6_end_sids | default([]) }}"
+      loop_control:
+        label: "End {{ item.sid }}"
       changed_when: false
 
     - name: Configure SRv6 End.DX4 local SIDs

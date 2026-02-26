@@ -1,6 +1,22 @@
-# vm06: IPv6 endpoint (nw5)
-# Interface: enp2s0 = nw5
+# vm06: SRv6 waypoint node (nw5)
+# Interface: enp2s0 = nw5 (IPv6)
 interfaces:
   - dev: enp2s0
     addresses:
       - "fd00:5::6/64"
+
+sysctl_params:
+  net.ipv6.conf.all.forwarding: "1"
+  net.ipv6.conf.all.seg6_enabled: "1"
+  net.ipv6.conf.enp2s0.seg6_enabled: "1"
+
+# Route to vm04's SRv6 locator via vm03
+ipv6_routes:
+  - dest: "fd00:a:4::/48"
+    via: "fd00:5::3"
+    dev: enp2s0
+
+# End SID: forward path waypoint
+srv6_end_sids:
+  - sid: "fd00:a:6::1"
+    dev: enp2s0

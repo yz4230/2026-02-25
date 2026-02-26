@@ -16,9 +16,13 @@ sysctl_params:
   net.ipv6.conf.all.seg6_enabled: "1"
   net.ipv6.conf.enp2s0.seg6_enabled: "1"
   net.ipv6.conf.enp3s0.seg6_enabled: "1"
+  net.ipv6.conf.enp4s0.seg6_enabled: "1"
 
 # Transit routes for SRv6 locators
 ipv6_routes:
+  - dest: "fd00:a:6::/48"
+    via: "fd00:5::6"
+    dev: enp4s0
   - dest: "fd00:a:4::/48"
     via: "fd00:3::4"
     dev: enp3s0

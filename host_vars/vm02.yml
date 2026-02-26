@@ -14,16 +14,19 @@ sysctl_params:
   net.ipv6.conf.all.seg6_enabled: "1"
   net.ipv6.conf.enp3s0.seg6_enabled: "1"
 
-# Route to vm04's SRv6 locator via vm03
+# Routes to SRv6 locators via vm03
 ipv6_routes:
+  - dest: "fd00:a:6::/48"
+    via: "fd00:2::3"
+    dev: enp3s0
   - dest: "fd00:a:4::/48"
     via: "fd00:2::3"
     dev: enp3s0
 
-# Forward: encap IPv4 destined to nw4 into SRv6
+# Forward: encap IPv4 destined to nw4 into SRv6 via vm06
 srv6_encap_routes:
   - dest: "10.4.0.0/24"
-    segs: "fd00:a:4::d4"
+    segs: "fd00:a:6::1,fd00:a:4::d4"
     dev: enp3s0
 
 # Return: decap SRv6 from vm04 back to IPv4 toward vm01

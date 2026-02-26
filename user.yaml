@@ -2,5 +2,13 @@
 ssh_authorized_keys:
   - ${ssh_public_key}
 
+package_update: true
+packages:
+  - termshark
+
 runcmd:
   - echo "Hello, World!"
+  - |-
+    wget "https://github.com/cilium/pwru/releases/latest/download/pwru-linux-amd64.tar.gz" -O /tmp/pwru.tar.gz
+    tar -xzf /tmp/pwru.tar.gz -C /usr/local/bin
+    rm /tmp/pwru.tar.gz
