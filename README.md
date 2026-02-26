@@ -4,6 +4,7 @@
 
 libvirt上に6台のVM（Debian）を構築し、IPv4 over SRv6を実証する検証環境。
 vm01 ↔ vm05間のIPv4通信を、SRv6バックボーン（vm02 - vm03 - vm04）を経由して転送する。
+往路はvm06をSRv6ウェイポイントとして経由する。
 
 ## ネットワークトポロジ
 
@@ -24,7 +25,7 @@ vm01 ──(nw1/IPv4)── vm02 ──(nw2/IPv6)── vm03 ──(nw3/IPv6)─
 | vm03 | SRv6 Transit ノード          | nw2, nw3, nw5      |
 | vm04 | SRv6 Ingress/Egress ノード  | nw3, nw4           |
 | vm05 | IPv4エンドポイント（宛先）    | nw4                |
-| vm06 | IPv6エンドポイント            | nw5                |
+| vm06 | SRv6 Waypoint ノード          | nw5                |
 
 ## ネットワークセグメント
 
@@ -73,32 +74,39 @@ vm01 ──(nw1/IPv4)── vm02 ──(nw2/IPv6)── vm03 ──(nw3/IPv6)─
 - Locator プレフィクス: `fd00:a:<node>::/48`
   - vm02: `fd00:a:2::/48`
   - vm04: `fd00:a:4::/48`
+  - vm06: `fd00:a:6::/48`
 
 ### Local SID
 
 | ノード | SID              | Action   | パラメータ                |
-|--------|-----------------|----------|--------------------------|
+|--------|-----------------|----------|---------------------------|
 | vm02   | fd00:a:2::d4    | End.DX4  | nh4 10.1.0.1 dev enp2s0  |
 | vm04   | fd00:a:4::d4    | End.DX4  | nh4 10.4.0.5 dev enp3s0  |
+| vm06   | fd00:a:6::1     | End      | dev enp2s0               |
 
 ### SRv6 H.Encaps ルート
 
-| ノード | 対象トラフィック | SRH Segments     | 出力IF  |
-|--------|-----------------|------------------|---------|
-| vm02   | 10.4.0.0/24     | fd00:a:4::d4     | enp3s0  |
-| vm04   | 10.1.0.0/24     | fd00:a:2::d4     | enp2s0  |
+| ノード | 対象トラフィック | SRH Segments              | 出力IF  |
+|--------|-----------------|---------------------------|---------|
+| vm02   | 10.4.0.0/24     | fd00:a:6::1,fd00:a:4::d4 | enp3s0  |
+| vm04   | 10.1.0.0/24     | fd00:a:2::d4              | enp2s0  |
 
 ### データパス
 
-**往路（vm01 → vm05）:**
+**往路（vm01 → vm05）** vm06経由:
 
 ```
 vm01 (10.1.0.1) → [IPv4: dst 10.4.0.5]
   → vm02 enp2s0 受信
-  → H.Encaps: IPv6 src=fd00:2::2, dst=fd00:a:4::d4, SRH=[fd00:a:4::d4]
+  → H.Encaps: IPv6 dst=fd00:a:6::1, SRH=[fd00:a:6::1, fd00:a:4::d4]
   → vm02 enp3s0 送出
   → vm03 enp2s0 受信 (transit forwarding)
-  → vm03 enp3s0 送出
+  → vm03 enp4s0 送出 (nw5方向)
+  → vm06 enp2s0 受信
+  → End: SRH次セグメント適用, dst=fd00:a:4::d4
+  → vm06 enp2s0 送出
+  → vm03 enp4s0 受信 (transit forwarding)
+  → vm03 enp3s0 送出 (nw3方向)
   → vm04 enp2s0 受信
   → End.DX4: デカプセレーション, nh4=10.4.0.5
   → vm04 enp3s0 送出
@@ -133,10 +141,13 @@ vm05 (10.4.0.5) → [IPv4: dst 10.1.0.1]
 
 | VM   | 宛先              | NextHop      | IF      |
 |------|-------------------|-------------|---------|
+| vm02 | fd00:a:6::/48     | fd00:2::3   | enp3s0  |
 | vm02 | fd00:a:4::/48     | fd00:2::3   | enp3s0  |
+| vm03 | fd00:a:6::/48     | fd00:5::6   | enp4s0  |
 | vm03 | fd00:a:4::/48     | fd00:3::4   | enp3s0  |
 | vm03 | fd00:a:2::/48     | fd00:2::2   | enp2s0  |
 | vm04 | fd00:a:2::/48     | fd00:3::3   | enp2s0  |
+| vm06 | fd00:a:4::/48     | fd00:5::3   | enp2s0  |
 
 ## カーネルパラメータ (sysctl)
 
@@ -150,10 +161,14 @@ vm05 (10.4.0.5) → [IPv4: dst 10.1.0.1]
 | vm03 | net.ipv6.conf.all.seg6_enabled       | 1 |
 | vm03 | net.ipv6.conf.enp2s0.seg6_enabled    | 1 |
 | vm03 | net.ipv6.conf.enp3s0.seg6_enabled    | 1 |
+| vm03 | net.ipv6.conf.enp4s0.seg6_enabled    | 1 |
 | vm04 | net.ipv4.ip_forward                  | 1 |
 | vm04 | net.ipv6.conf.all.forwarding         | 1 |
 | vm04 | net.ipv6.conf.all.seg6_enabled       | 1 |
 | vm04 | net.ipv6.conf.enp2s0.seg6_enabled    | 1 |
+| vm06 | net.ipv6.conf.all.forwarding         | 1 |
+| vm06 | net.ipv6.conf.all.seg6_enabled       | 1 |
+| vm06 | net.ipv6.conf.enp2s0.seg6_enabled    | 1 |
 
 ## ファイル構成
 
@@ -186,7 +201,7 @@ vm05 (10.4.0.5) → [IPv4: dst 10.1.0.1]
 | 1    | Configure static IP addresses                       | NIC link up + IPアドレス付与           |
 | 2    | Configure kernel parameters for forwarding and SRv6 | sysctl設定（ランタイム）               |
 | 3    | Configure static routes                             | IPv4/IPv6スタティックルート            |
-| 4    | Configure SRv6 encapsulation and local SIDs         | H.Encaps + End.DX4設定               |
+| 4    | Configure SRv6 encapsulation and local SIDs         | H.Encaps + End + End.DX4設定         |
 
 ## 操作手順
 
